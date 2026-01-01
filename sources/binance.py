@@ -21,7 +21,8 @@ async def fetch_binance_rate(asset="USD"):
         prices = [float(ad["adv"]["price"]) for ad in data if "adv" in ad and "price" in ad["adv"]]
 
         if not prices:
-            return None  # No data available
+            print("Binance returned no prices")
+            return None
 
         return statistics.median(prices)
 
