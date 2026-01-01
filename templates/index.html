@@ -14,17 +14,26 @@
 <h2>💱 Forex Rates (NGN)</h2>
 <table>
 <tr>
-<th>Currency</th><th>Average</th><th>Min</th><th>Max</th><th>Sources</th>
+<th>Currency</th>
+<th>Average</th>
+<th>Min</th>
+<th>Max</th>
+<th>Sources</th>
 </tr>
-{% for cur, v in forex.items() %}
-<tr>
-<td>{{ cur }}</td>
-<td>{{ v.avg }}</td>
-<td>{{ v.min }}</td>
-<td>{{ v.max }}</td>
-<td>{{ v.sources }}</td>
-</tr>
-{% endfor %}
+
+{% if forex %}
+  {% for cur, v in forex.items() %}
+  <tr>
+    <td>{{ cur }}</td>
+    <td>{{ v.avg | default("—") }}</td>
+    <td>{{ v.min | default("—") }}</td>
+    <td>{{ v.max | default("—") }}</td>
+    <td>{{ v.sources | default("—") }}</td>
+  </tr>
+  {% endfor %}
+{% else %}
+<tr><td colspan="5">Forex data unavailable</td></tr>
+{% endif %}
 </table>
 </section>
 
@@ -32,20 +41,27 @@
 <h2>🪙 Crypto Prices</h2>
 <table>
 <tr>
-<th>Coin</th><th>USD</th><th>NGN</th>
+<th>Coin</th>
+<th>USD</th>
+<th>NGN</th>
 </tr>
-{% for coin, v in crypto.items() %}
-<tr>
-<td>{{ coin|capitalize }}</td>
-<td>${{ v.USD }}</td>
-<td>₦{{ v.NGN }}</td>
-</tr>
-{% endfor %}
+
+{% if crypto %}
+  {% for coin, v in crypto.items() %}
+  <tr>
+    <td>{{ coin | capitalize }}</td>
+    <td>${{ v.USD | default("—") }}</td>
+    <td>₦{{ v.NGN | default("—") }}</td>
+  </tr>
+  {% endfor %}
+{% else %}
+<tr><td colspan="3">Crypto data unavailable</td></tr>
+{% endif %}
 </table>
 </section>
 
 <footer>
-<p>Last Updated: {{ updated }}</p>
+<p>Last Updated: {{ updated | default("N/A") }}</p>
 <p class="disclaimer">
 Rates are aggregated from multiple public sources. Parallel market rates are indicative only.
 </p>
