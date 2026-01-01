@@ -1,63 +1,69 @@
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from scraper import update_rates, get_latest_rates
+# main.py
 import asyncio
-import sqlite_utils
-from database import DB_PATH
-import json
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from scraper import update_rates, get_latest_rates  # make sure get_latest_rates exists in scraper.py
+from pathlib import Path
+from jinja2 import Template
 
-app = FastAPI(title="Naija Rate API")
+app = FastAPI(title="NaijaRate")
 
-# --------------------------
-# Healthcheck route
-# --------------------------
-@app.get("/health")
-def healthcheck():
-    return {"status": "ok"}
+# Allow cross-origin requests (optional, useful if front-end is separate)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# --------------------------
-# Update rates route
-# --------------------------
-@app.get("/update")
-async def update():
+# Load HTML template
+TEMPLATE_FILE = Path(__file__).parent / "templates" / "index.html"
+with open(TEMPLATE_FILE, "r") as f:
+    html_template = Template(f.read())
+
+# Startup task to fetch initial rates
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(update_rates())  # run in background
+    print("Initial rates update started...")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home():
+    """
+    Serve the main HTML page with latest rates.
+    """
+    rates = get_latest_rates()
+    return html_template.render(
+        forex=rates.get("forex"),
+        crypto=rates.get("crypto")
+    )
+
+
+@app.get("/api", response_class=JSONResponse)
+async def api():
+    """
+    Return latest rates as JSON.
+    """
+    rates = get_latest_rates()
+    return JSONResponse(content=rates)
+
+
+# Optional endpoint to force update rates
+@app.post("/update")
+async def manual_update():
+    """
+    Trigger an update manually (for testing or cron jobs).
+    """
     try:
-        # Run the scraper to fetch and store latest rates
         await update_rates()
-        return {"status": "success", "message": "Rates updated successfully"}
+        return {"status": "success", "message": "Rates updated"}
     except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+        return {"status": "error", "message": str(e)}
 
-# --------------------------
-# Get latest stored rates
-# --------------------------
-@app.get("/rates")
-def get_rates():
-    try:
-        db = sqlite_utils.Database(DB_PATH)
-        table = db["rates"]
-        # Fetch latest row
-        rows = list(table.rows_where(order_by="timestamp DESC", limit=1))
-        if not rows:
-            return JSONResponse({"status": "error", "message": "No rates available"}, status_code=404)
 
-        row = rows[0]
+if __name__ == "__main__":
+    import uvicorn
 
-        # Convert stored JSON fields back to dict
-        official = json.loads(row.get("official") or "{}")
-        blackmarket = json.loads(row.get("blackmarket") or "{}")
-        crypto = json.loads(row.get("crypto") or "{}")
-
-        return {
-            "status": "success",
-            "timestamp": row.get("timestamp"),
-            "avg_rate": row.get("avg_rate"),
-            "min_rate": row.get("min_rate"),
-            "max_rate": row.get("max_rate"),
-            "sources": row.get("sources"),
-            "official": official,
-            "blackmarket": blackmarket,
-            "crypto": crypto
-        }
-
-    except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+    uvicorn.run(app, host="0.0.0.0", port=10000)
