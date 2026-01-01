@@ -1,123 +1,71 @@
 import httpx
-from bs4 import BeautifulSoup
-import asyncio
 
-# ----------------------------
-# Black Market Sources
-# ----------------------------
-BLACKMARKET_SOURCES = {
-    "nairatoday": "https://nairatoday.com/",
-    "ngnrates": "https://www.ngnrates.com/",
-    "abokifx": "https://www.abokifx.com/",
-    "ratecity": "https://www.ratecityng.com/",
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Render; FastAPI)",
 }
 
-async def fetch_blackmarket_forex(currencies=["USD", "EUR", "GBP", "CAD"]):
-    """
-    Fetch black market rates from multiple sources.
-    Returns dict: {"USD": 755, "EUR": 830, ...}
-    """
-    rates = {}
-    for source, url in BLACKMARKET_SOURCES.items():
-        try:
-            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-                r = await client.get(url)
-                r.raise_for_status()
-                html = r.text
+TIMEOUT = 15
 
-            soup = BeautifulSoup(html, "html.parser")
-            source_rates = {}
 
-            # Example parsing logic per source
-            if source == "nairatoday":
-                for cur in currencies:
-                    tag = soup.find("div", string=lambda x: x and cur in x)
-                    if tag:
-                        val = tag.find_next("div").text
-                        source_rates[cur] = int(val.replace(",", "").strip())
+# ---------- BINANCE ----------
+async def binance_usdt_ngn():
+    url = "https://api.binance.com/api/v3/ticker/price?symbol=USDTNGN"
+    async with httpx.AsyncClient(headers=HEADERS, timeout=TIMEOUT) as client:
+        r = await client.get(url)
+        r.raise_for_status()
+        return float(r.json()["price"])
 
-            elif source == "ngnrates":
-                for cur in currencies:
-                    tag = soup.find("span", string=lambda x: x and cur in x)
-                    if tag:
-                        val = tag.find_next("span").text
-                        source_rates[cur] = int(val.replace(",", "").strip())
 
-            elif source == "abokifx":
-                for cur in currencies:
-                    tag = soup.find("td", string=lambda x: x and cur in x)
-                    if tag:
-                        val = tag.find_next("td").text
-                        source_rates[cur] = int(val.replace(",", "").strip())
+# ---------- OKX ----------
+async def okx_usdt_ngn():
+    # OKX does NOT have direct NGN
+    # Use USDT/USD * USD/NGN
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        usdt_usd = await client.get(
+            "https://www.okx.com/api/v5/market/ticker?instId=USDT-USD"
+        )
+        usdt_usd.raise_for_status()
+        price1 = float(usdt_usd.json()["data"][0]["last"])
 
-            elif source == "ratecity":
-                for cur in currencies:
-                    tag = soup.find("td", string=lambda x: x and cur in x)
-                    if tag:
-                        val = tag.find_next("td").text
-                        source_rates[cur] = int(val.replace(",", "").strip())
+        usd_ngn = await exchangerate_api()
+        return price1 * usd_ngn
 
-            # Merge into main dict (average if multiple sources exist)
-            for cur, val in source_rates.items():
-                if val:
-                    rates[cur] = val
 
-        except httpx.HTTPStatusError as e:
-            print(f"❌ Error fetching {source} rates: {e}")
-        except Exception as e:
-            print(f"❌ Unexpected error fetching {source} rates: {e}")
+# ---------- KUCOIN ----------
+async def kucoin_usdt_ngn():
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        usdt_usd = await client.get(
+            "https://api.kucoin.com/api/v1/market/orderbook/level1?symbol=USDT-USDC"
+        )
+        usdt_usd.raise_for_status()
+        price1 = float(usdt_usd.json()["data"]["price"])
 
-    return rates
+        usd_ngn = await exchangerate_api()
+        return price1 * usd_ngn
 
-# ----------------------------
-# Official Forex Rate from CBN
-# ----------------------------
-CBN_XML_URL = "https://www.cbn.gov.ng/scripts/exchangerates.asp"
 
-async def fetch_official_forex(currencies=["USD", "EUR", "GBP", "CAD"]):
-    """
-    Fetch official rates from CBN XML page.
-    Returns dict: {"USD": 775, "EUR": 830, ...}
-    """
-    rates = {}
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.get(CBN_XML_URL)
-            r.raise_for_status()
-            html = r.text
+# ---------- BYBIT ----------
+async def bybit_usdt_ngn():
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        r = await client.get(
+            "https://api.bybit.com/v5/market/tickers?category=spot&symbol=USDTUSDC"
+        )
+        r.raise_for_status()
+        price1 = float(r.json()["result"]["list"][0]["lastPrice"])
 
-        soup = BeautifulSoup(html, "html.parser")
-        table = soup.find("table")
-        if not table:
-            print("❌ CBN table not found")
-            return rates
+        usd_ngn = await exchangerate_api()
+        return price1 * usd_ngn
 
-        for row in table.find_all("tr"):
-            cols = row.find_all("td")
-            if len(cols) >= 2:
-                cur = cols[0].text.strip()
-                val = cols[1].text.strip().replace(",", "")
-                if cur in currencies:
-                    try:
-                        rates[cur] = int(val)
-                    except ValueError:
-                        continue
 
-    except httpx.HTTPStatusError as e:
-        print(f"❌ Error fetching official forex: {e}")
-    except Exception as e:
-        print(f"❌ Unexpected error fetching official forex: {e}")
+# ---------- OFFICIAL USD/NGN ----------
+async def exchangerate_api():
+    url = "https://open.er-api.com/v6/latest/USD"
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        r = await client.get(url)
+        r.raise_for_status()
+        return float(r.json()["rates"]["NGN"])
 
-    return rates
 
-# ----------------------------
-# Example usage
-# ----------------------------
-if __name__ == "__main__":
-    async def main():
-        official = await fetch_official_forex()
-        blackmarket = await fetch_blackmarket_forex()
-        print("Official Rates:", official)
-        print("Blackmarket Rates:", blackmarket)
-
-    asyncio.run(main())
+# ---------- HARD FALLBACK ----------
+async def fallback_rate():
+    return 1500.0
