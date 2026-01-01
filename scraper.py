@@ -1,82 +1,167 @@
 import asyncio
-from datetime import datetime
+import httpx
+from bs4 import BeautifulSoup
 import sqlite_utils
 import json
-
+from datetime import datetime
+from aggregator import aggregate_rates
 from database import DB_PATH
-from sources.forex_sources import fetch_official_forex, fetch_blackmarket_forex
 from sources.cex_rates import binance_usdt_ngn, okx_usdt_ngn, kucoin_usdt_ngn, bybit_usdt_ngn
-from sources.crypto import fetch_crypto_rates
-from sources.aggregator import aggregate_rates
 
+# ---------- BLACK MARKET SOURCES ----------
+BLACKMARKET_SOURCES = {
+    "nairatoday": "https://nairatoday.com/",
+    "ngnrates": "https://www.ngnrates.com/",
+    "abokifx": "https://www.abokifx.com/",
+    "ratecity": "https://www.ratecityng.com/",
+}
 
+HEADERS = {"User-Agent": "Mozilla/5.0 (Render; FastAPI)"}
+TIMEOUT = 15
+
+# ----------------------------
+# Fetch blackmarket rates
+# ----------------------------
+async def fetch_blackmarket_forex(currencies=["USD", "EUR", "GBP", "CAD"]):
+    rates = {}
+    for source, url in BLACKMARKET_SOURCES.items():
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT, headers=HEADERS, follow_redirects=True) as client:
+                r = await client.get(url)
+                r.raise_for_status()
+                html = r.text
+
+            soup = BeautifulSoup(html, "html.parser")
+            source_rates = {}
+
+            if source == "nairatoday":
+                for cur in currencies:
+                    tag = soup.find("div", string=lambda x: x and cur in x)
+                    if tag:
+                        val = tag.find_next("div").text
+                        source_rates[cur] = int(val.replace(",", "").strip())
+            elif source == "ngnrates":
+                for cur in currencies:
+                    tag = soup.find("span", string=lambda x: x and cur in x)
+                    if tag:
+                        val = tag.find_next("span").text
+                        source_rates[cur] = int(val.replace(",", "").strip())
+            elif source == "abokifx":
+                for cur in currencies:
+                    tag = soup.find("td", string=lambda x: x and cur in x)
+                    if tag:
+                        val = tag.find_next("td").text
+                        source_rates[cur] = int(val.replace(",", "").strip())
+            elif source == "ratecity":
+                for cur in currencies:
+                    tag = soup.find("td", string=lambda x: x and cur in x)
+                    if tag:
+                        val = tag.find_next("td").text
+                        source_rates[cur] = int(val.replace(",", "").strip())
+
+            for cur, val in source_rates.items():
+                if val:
+                    rates[cur] = val
+
+        except httpx.HTTPStatusError as e:
+            print(f"❌ Error fetching {source} rates: {e}")
+        except Exception as e:
+            print(f"❌ Unexpected error fetching {source} rates: {e}")
+
+    return rates
+
+# ----------------------------
+# Fetch official rates (fallback API)
+# ----------------------------
+async def fetch_official_forex():
+    url = "https://open.er-api.com/v6/latest/USD"  # fallback since CBN XML 404
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            r = await client.get(url)
+            r.raise_for_status()
+            data = r.json()
+            return {"USD": data["rates"]["NGN"]}
+    except Exception as e:
+        print(f"❌ Error fetching official forex: {e}")
+        return {}
+
+# ----------------------------
+# Fetch crypto CEX rates
+# ----------------------------
+async def fetch_cex_rates():
+    cex_funcs = [binance_usdt_ngn, okx_usdt_ngn, kucoin_usdt_ngn, bybit_usdt_ngn]
+    results = {}
+    for func in cex_funcs:
+        try:
+            price = await func()
+            results[func.__name__.upper()] = {"USD": price / 750, "NGN": price}  # example USD approximation
+        except Exception as e:
+            print(f"❌ Error fetching {func.__name__}: {e}")
+    return results
+
+# ----------------------------
+# Update rates in database
+# ----------------------------
 async def update_rates():
-    # ----------------------------
-    # 1️⃣ Fetch official forex rates
-    # ----------------------------
-    official_rates = await fetch_official_forex(["USD", "EUR", "GBP", "CAD"])
-    
-    # ----------------------------
-    # 2️⃣ Fetch black market rates
-    # ----------------------------
-    blackmarket_rates = await fetch_blackmarket_forex(["USD", "EUR", "GBP", "CAD"])
-    
-    # ----------------------------
-    # 3️⃣ Fetch CEX USDT → NGN rates
-    # ----------------------------
-    cex_tasks = [
-        binance_usdt_ngn(),
-        okx_usdt_ngn(),
-        kucoin_usdt_ngn(),
-        bybit_usdt_ngn(),
-    ]
-    
-    cex_rates_list = await asyncio.gather(*cex_tasks, return_exceptions=True)
-    # Filter out failed tasks
-    cex_rates = [r for r in cex_rates_list if isinstance(r, (int, float))]
-    
-    # ----------------------------
-    # 4️⃣ Determine USD → NGN rate for crypto
-    # ----------------------------
-    usd_to_ngn = official_rates.get("USD") or blackmarket_rates.get("USD") or (cex_rates[0] if cex_rates else 800)
-    
-    # ----------------------------
-    # 5️⃣ Fetch top crypto prices (USD + NGN)
-    # ----------------------------
-    crypto_rates = await fetch_crypto_rates(usd_to_ngn)
-    
-    # ----------------------------
-    # 6️⃣ Aggregate all forex rates
-    # ----------------------------
-    combined_forex = list(official_rates.values()) + list(blackmarket_rates.values()) + cex_rates
-    forex_result = aggregate_rates(combined_forex)
-    
-    if not forex_result:
-        print("❌ No forex data available")
-        return
-    
-    # ----------------------------
-    # 7️⃣ Save everything to SQLite
-    # ----------------------------
+    official = await fetch_official_forex()
+    blackmarket = await fetch_blackmarket_forex()
+    crypto = await fetch_cex_rates()
+
+    # Aggregate blackmarket
+    usd_to_ngn = aggregate_rates(list(blackmarket.values()))
+    avg_rate = usd_to_ngn["avg"] if usd_to_ngn else None
+
+    # Store in SQLite
+    db = sqlite_utils.Database(DB_PATH)
+    table = db.table("rates", pk="timestamp", defaults={
+        "avg_rate": None,
+        "min_rate": None,
+        "max_rate": None,
+        "sources": 0,
+        "official": "{}",
+        "blackmarket": "{}",
+        "crypto": "{}"
+    })
+
+    timestamp = datetime.utcnow().isoformat()
+    table.upsert({
+        "timestamp": timestamp,
+        "avg_rate": avg_rate,
+        "min_rate": usd_to_ngn["min"] if usd_to_ngn else None,
+        "max_rate": usd_to_ngn["max"] if usd_to_ngn else None,
+        "sources": usd_to_ngn["sources"] if usd_to_ngn else 0,
+        "official": json.dumps(official),
+        "blackmarket": json.dumps(blackmarket),
+        "crypto": json.dumps(crypto)
+    }, pk="timestamp")
+
+    print("✅ Updated rates successfully")
+    print(f"Forex avg: {avg_rate}")
+    print(f"Crypto sample: {dict(list(crypto.items())[:3])}")  # show 3
+
+# ----------------------------
+# Get latest rates from DB
+# ----------------------------
+def get_latest_rates():
     db = sqlite_utils.Database(DB_PATH)
     table = db["rates"]
-    
-    table.insert({
-        "timestamp": datetime.utcnow().isoformat(),
-        "avg_rate": forex_result["avg"],
-        "min_rate": forex_result["min"],
-        "max_rate": forex_result["max"],
-        "sources": forex_result["sources"],
-        "official": json.dumps(official_rates),
-        "blackmarket": json.dumps(blackmarket_rates),
-        "cex_rates": json.dumps(cex_rates),
-        "crypto": json.dumps(crypto_rates)
-    }, alter=True)
-    
-    print("✅ Updated rates successfully")
-    print("Forex avg:", forex_result["avg"])
-    print("Crypto sample:", {k: crypto_rates[k] for k in list(crypto_rates)[:3]})
+    rows = list(table.rows_where(order_by="timestamp DESC", limit=1))
+    if not rows:
+        return None
+    row = rows[0]
+    return {
+        "timestamp": row.get("timestamp"),
+        "avg_rate": row.get("avg_rate"),
+        "min_rate": row.get("min_rate"),
+        "max_rate": row.get("max_rate"),
+        "sources": row.get("sources"),
+        "official": json.loads(row.get("official") or "{}"),
+        "blackmarket": json.loads(row.get("blackmarket") or "{}"),
+        "crypto": json.loads(row.get("crypto") or "{}")
+    }
 
-
+# ----------------------------
+# Test scraper
+# ----------------------------
 if __name__ == "__main__":
     asyncio.run(update_rates())
