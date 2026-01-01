@@ -2,59 +2,53 @@ import asyncio
 from datetime import datetime
 import sqlite_utils
 import json
+
 from database import DB_PATH
 from sources.binance import fetch_binance_rate
 from sources.blogs import fetch_blog_rates
-from sources.aggregator import aggregate_rates
 from sources.crypto import fetch_crypto_rates
+from sources.aggregator import aggregate_rates
+from sources.forex_sources import fetch_official_forex, fetch_blackmarket_forex
 
 async def update_rates():
-    try:
-        # ----- 1. Fetch forex rates -----
-        print("Fetching forex rates from Binance...")
-        binance_usd = await fetch_binance_rate("USD")
-        binance_gbp = await fetch_binance_rate("GBP")
-        binance_eur = await fetch_binance_rate("EUR")
-        binance_cad = await fetch_binance_rate("CAD")
+    # 1️⃣ Fetch official forex rates
+    official_rates = await fetch_official_forex(["USD","GBP","EUR","CAD"])
+    
+    # 2️⃣ Fetch black market rates from multiple sources
+    blackmarket_rates = await fetch_blackmarket_forex(["USD","GBP","EUR","CAD"])
 
-        print("Fetching blog rates...")
-        blog_rates = await fetch_blog_rates()
+    # 3️⃣ Fetch Binance/USD P2P rates (optional fallback)
+    binance_rate = await fetch_binance_rate("USD")
+    
+    # 4️⃣ Fetch top crypto rates from CoinGecko (converted to NGN using USD rate)
+    usd_to_ngn = official_rates.get("USD") or (blackmarket_rates.get("USD") or 800) # fallback
+    crypto_rates = await fetch_crypto_rates(usd_to_ngn)
+    
+    # 5️⃣ Aggregate forex rates (official + blackmarket + binance)
+    forex_result = aggregate_rates(
+        list(official_rates.values()) + list(blackmarket_rates.values()) + ([binance_rate] if binance_rate else [])
+    )
 
-        # Aggregate rates safely
-        result_usd = aggregate_rates([binance_usd], blog_rates) or {}
-        result_gbp = aggregate_rates([binance_gbp], blog_rates) or {}
-        result_eur = aggregate_rates([binance_eur], blog_rates) or {}
-        result_cad = aggregate_rates([binance_cad], blog_rates) or {}
+    if not forex_result:
+        print("❌ No forex data available")
+        return
 
-        if not result_usd.get("avg"):
-            print("❌ No USD rates fetched, aborting.")
-            return
+    # 6️⃣ Save to SQLite database
+    db = sqlite_utils.Database(DB_PATH)
+    table = db["rates"]
 
-        # ----- 2. Fetch crypto rates using USD → NGN -----
-        usd_to_ngn = result_usd["avg"]
-        crypto_prices = await fetch_crypto_rates(usd_to_ngn)
+    table.insert({
+        "timestamp": datetime.utcnow().isoformat(),
+        "avg_rate": forex_result["avg"],
+        "min_rate": forex_result["min"],
+        "max_rate": forex_result["max"],
+        "sources": forex_result["sources"],
+        "official": json.dumps(official_rates),
+        "blackmarket": json.dumps(blackmarket_rates),
+        "crypto": json.dumps(crypto_rates)
+    }, alter=True)
 
-        # ----- 3. Save everything to DB -----
-        db = sqlite_utils.Database(DB_PATH)
-        table = db["rates"]
-
-        table.insert({
-            "timestamp": datetime.utcnow().isoformat(),
-            "usd_avg": result_usd.get("avg"),
-            "usd_min": result_usd.get("min"),
-            "usd_max": result_usd.get("max"),
-            "gbp_avg": result_gbp.get("avg"),
-            "eur_avg": result_eur.get("avg"),
-            "cad_avg": result_cad.get("avg"),
-            "sources": result_usd.get("sources", 0),
-            "crypto": json.dumps(crypto_prices)  # store as string for templates
-        }, alter=True)
-
-        print("✅ Updated forex and crypto rates")
-
-    except Exception as e:
-        print("❌ Error updating rates:", e)
-
+    print("✅ Updated forex and crypto rates:", forex_result["avg"])
 
 if __name__ == "__main__":
     asyncio.run(update_rates())
