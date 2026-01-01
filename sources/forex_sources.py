@@ -1,7 +1,7 @@
 import httpx
 from bs4 import BeautifulSoup
-import asyncio
 
+# ---------- Black Market Sources ----------
 BLACKMARKET_SOURCES = {
     "nairatoday": "https://nairatoday.com/",
     "ngnrates": "https://www.ngnrates.com/",
@@ -9,9 +9,7 @@ BLACKMARKET_SOURCES = {
     "ratecity": "https://www.ratecityng.com/",
 }
 
-CBN_XML_URL = "https://www.cbn.gov.ng/scripts/exchangerates.asp"
-
-async def fetch_blackmarket_forex(currencies=["USD","EUR","GBP","CAD"]):
+async def fetch_blackmarket_forex(currencies=["USD","EUR","GBP"]):
     rates = {}
     for source, url in BLACKMARKET_SOURCES.items():
         try:
@@ -23,6 +21,7 @@ async def fetch_blackmarket_forex(currencies=["USD","EUR","GBP","CAD"]):
             soup = BeautifulSoup(html, "html.parser")
             source_rates = {}
 
+            # Example parsing per source (adjust if needed)
             if source == "nairatoday":
                 for cur in currencies:
                     tag = soup.find("div", string=lambda x: x and cur in x)
@@ -35,20 +34,13 @@ async def fetch_blackmarket_forex(currencies=["USD","EUR","GBP","CAD"]):
                     if tag:
                         val = tag.find_next("span").text
                         source_rates[cur] = int(val.replace(",", "").strip())
-            elif source == "abokifx":
-                for cur in currencies:
-                    tag = soup.find("td", string=lambda x: x and cur in x)
-                    if tag:
-                        val = tag.find_next("td").text
-                        source_rates[cur] = int(val.replace(",", "").strip())
-            elif source == "ratecity":
+            elif source in ["abokifx", "ratecity"]:
                 for cur in currencies:
                     tag = soup.find("td", string=lambda x: x and cur in x)
                     if tag:
                         val = tag.find_next("td").text
                         source_rates[cur] = int(val.replace(",", "").strip())
 
-            # merge rates
             for cur, val in source_rates.items():
                 if val:
                     rates[cur] = val
@@ -58,7 +50,11 @@ async def fetch_blackmarket_forex(currencies=["USD","EUR","GBP","CAD"]):
 
     return rates
 
-async def fetch_official_forex(currencies=["USD","EUR","GBP","CAD"]):
+
+# ---------- Official CBN Rate ----------
+CBN_XML_URL = "https://www.cbn.gov.ng/scripts/exchangerates.asp"
+
+async def fetch_official_forex(currencies=["USD","EUR","GBP"]):
     rates = {}
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -77,16 +73,9 @@ async def fetch_official_forex(currencies=["USD","EUR","GBP","CAD"]):
                     if cur in currencies:
                         try:
                             rates[cur] = int(val)
-                        except:
+                        except ValueError:
                             continue
     except Exception as e:
         print("❌ Error fetching official forex:", e)
 
-    return rates
-
-async def get_forex_rates():
-    # merge official + black market
-    official = await fetch_official_forex()
-    black = await fetch_blackmarket_forex()
-    rates = {**official, **black}
     return rates
