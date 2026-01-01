@@ -1,46 +1,41 @@
 import asyncio
-from database import insert_rate
-from sources.forex_sources import (
-    binance_usdt_ngn,
-    okx_usdt_ngn,
-    kucoin_usdt_ngn,
-    bybit_usdt_ngn,
-    exchangerate_api,
-    fallback_rate,
-)
+from datetime import datetime
+import sqlite_utils
+import json
+
+from database import DB_PATH
+from sources.crypto import fetch_crypto_rates
+from sources.cex_rates import fetch_cex_ngn_rate
+from sources.aggregator import aggregate_rates
 
 async def update_rates():
-    success = False
+    # 1️⃣ Get NGN rate from multiple CEXs
+    cex_rates = await fetch_cex_ngn_rate()
 
-    sources = [
-        ("binance", binance_usdt_ngn, "USDT/NGN"),
-        ("okx", okx_usdt_ngn, "USDT/NGN"),
-        ("kucoin", kucoin_usdt_ngn, "USDT/NGN"),
-        ("bybit", bybit_usdt_ngn, "USDT/NGN"),
-    ]
+    if not cex_rates:
+        print("❌ No CEX data available")
+        return
 
-    for name, func, pair in sources:
-        try:
-            rate = await func()
-            insert_rate(name, pair, rate)
-            success = True
-            print(f"✅ {name} inserted: {rate}")
-        except Exception as e:
-            print(f"❌ {name} failed:", e)
+    usd_to_ngn = aggregate_rates(list(cex_rates.values()))["avg"]
 
-    # Official FX
-    try:
-        usd_ngn = await exchangerate_api()
-        insert_rate("official", "USD/NGN", usd_ngn)
-        success = True
-    except Exception as e:
-        print("❌ Official FX failed:", e)
+    # 2️⃣ Crypto prices
+    crypto = await fetch_crypto_rates(usd_to_ngn)
 
-    # Absolute fallback
-    if not success:
-        rate = await fallback_rate()
-        insert_rate("fallback", "USD/NGN", rate)
-        print("⚠ Using fallback rate")
+    # 3️⃣ Save
+    db = sqlite_utils.Database(DB_PATH)
+    table = db["rates"]
+
+    table.insert(
+        {
+            "timestamp": datetime.utcnow().isoformat(),
+            "usd_ngn": usd_to_ngn,
+            "cex": json.dumps(cex_rates),
+            "crypto": json.dumps(crypto),
+        },
+        alter=True,
+    )
+
+    print("✅ Rates updated:", usd_to_ngn)
 
 
 if __name__ == "__main__":
