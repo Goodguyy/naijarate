@@ -17,9 +17,7 @@ app.mount(
 )
 
 # Templates folder
-templates = Jinja2Templates(
-    directory=os.path.join(BASE_DIR, "templates")
-)
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
