@@ -1,45 +1,9 @@
-body {
-    font-family: system-ui, sans-serif;
-    background: #f7f9fc;
-    margin: 0;
-    padding: 20px;
-    color: #111;
-}
-
-header {
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-h1 {
-    margin-bottom: 5px;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: #fff;
-    margin-bottom: 30px;
-}
-
-th, td {
-    padding: 12px;
-    border-bottom: 1px solid #eee;
-    text-align: center;
-}
-
-th {
-    background: #0a2540;
-    color: #fff;
-}
-
-footer {
-    text-align: center;
-    font-size: 14px;
-    color: #555;
-}
-
-.disclaimer {
-    font-size: 12px;
-    margin-top: 10px;
-}
+body { font-family: 'Arial', sans-serif; margin:0; padding:0; background:#f5f5f5; color:#333;}
+header { background:#1a73e8; color:#fff; padding:2rem; text-align:center;}
+h1 { margin:0; font-size:2.5rem;}
+p { margin:0.5rem 0;}
+.grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(300px,1fr)); gap:1rem; padding:1rem;}
+.card { background:#fff; padding:1.5rem; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.1);}
+table { width:100%; border-collapse:collapse;}
+th, td { padding:0.5rem; border-bottom:1px solid #ddd; text-align:center;}
+footer { text-align:center; padding:1rem; font-size:0.9rem; color:#555;}
