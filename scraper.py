@@ -22,7 +22,7 @@ TIMEOUT = 15
 # ----------------------------
 # Fetch blackmarket rates
 # ----------------------------
-async def fetch_blackmarket_forex(currencies=["USD", "EUR", "GBP", "CAD"]):
+async def fetch_blackmarket_forex(currencies=["USD"]):
     rates = {}
     for source, url in BLACKMARKET_SOURCES.items():
         try:
@@ -34,6 +34,7 @@ async def fetch_blackmarket_forex(currencies=["USD", "EUR", "GBP", "CAD"]):
             soup = BeautifulSoup(html, "html.parser")
             source_rates = {}
 
+            # Example parsing logic
             if source == "nairatoday":
                 for cur in currencies:
                     tag = soup.find("div", string=lambda x: x and cur in x)
@@ -63,15 +64,13 @@ async def fetch_blackmarket_forex(currencies=["USD", "EUR", "GBP", "CAD"]):
                 if val:
                     rates[cur] = val
 
-        except httpx.HTTPStatusError as e:
-            print(f"❌ Error fetching {source} rates: {e}")
         except Exception as e:
-            print(f"❌ Unexpected error fetching {source} rates: {e}")
+            print(f"❌ Error fetching {source} rates: {e}")
 
     return rates
 
 # ----------------------------
-# Fetch official rates (fallback API)
+# Fetch official USD/NGN rate (fallback API)
 # ----------------------------
 async def fetch_official_forex():
     url = "https://open.er-api.com/v6/latest/USD"  # fallback since CBN XML 404
@@ -86,18 +85,35 @@ async def fetch_official_forex():
         return {}
 
 # ----------------------------
-# Fetch crypto CEX rates
+# Fetch crypto prices from CEX
 # ----------------------------
 async def fetch_cex_rates():
     cex_funcs = [binance_usdt_ngn, okx_usdt_ngn, kucoin_usdt_ngn, bybit_usdt_ngn]
     results = {}
     for func in cex_funcs:
         try:
-            price = await func()
-            results[func.__name__.upper()] = {"USD": price / 750, "NGN": price}  # example USD approximation
+            ngn_price = await func()
+            results[func.__name__.upper()] = {"NGN": ngn_price}
         except Exception as e:
             print(f"❌ Error fetching {func.__name__}: {e}")
     return results
+
+# ----------------------------
+# Fetch top coins from CoinGecko
+# ----------------------------
+async def fetch_coingecko_top(limit=10):
+    url = f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page={limit}&page=1&sparkline=false"
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        r = await client.get(url)
+        r.raise_for_status()
+        data = r.json()
+        coins = {}
+        for coin in data:
+            coins[coin["symbol"].upper()] = {
+                "USD": coin["current_price"],
+                "NGN": None  # will populate after we get USD/NGN
+            }
+        return coins
 
 # ----------------------------
 # Update rates in database
@@ -105,13 +121,19 @@ async def fetch_cex_rates():
 async def update_rates():
     official = await fetch_official_forex()
     blackmarket = await fetch_blackmarket_forex()
-    crypto = await fetch_cex_rates()
+    avg_rate_obj = aggregate_rates(list(blackmarket.values()))
+    avg_rate = avg_rate_obj["avg"] if avg_rate_obj else None
 
-    # Aggregate blackmarket
-    usd_to_ngn = aggregate_rates(list(blackmarket.values()))
-    avg_rate = usd_to_ngn["avg"] if usd_to_ngn else None
+    # Determine USD/NGN for CoinGecko conversion
+    usd_to_ngn = avg_rate or official.get("USD") or 750
 
-    # Store in SQLite
+    # Crypto prices
+    cex = await fetch_cex_rates()
+    coingecko = await fetch_coingecko_top()
+    for coin, data in coingecko.items():
+        data["NGN"] = round(data["USD"] * usd_to_ngn)
+
+    # Save in SQLite
     db = sqlite_utils.Database(DB_PATH)
     table = db.table("rates", pk="timestamp", defaults={
         "avg_rate": None,
@@ -120,24 +142,26 @@ async def update_rates():
         "sources": 0,
         "official": "{}",
         "blackmarket": "{}",
-        "crypto": "{}"
+        "crypto": "{}",
+        "coingecko": "{}"
     })
 
     timestamp = datetime.utcnow().isoformat()
     table.upsert({
         "timestamp": timestamp,
         "avg_rate": avg_rate,
-        "min_rate": usd_to_ngn["min"] if usd_to_ngn else None,
-        "max_rate": usd_to_ngn["max"] if usd_to_ngn else None,
-        "sources": usd_to_ngn["sources"] if usd_to_ngn else 0,
+        "min_rate": avg_rate_obj["min"] if avg_rate_obj else None,
+        "max_rate": avg_rate_obj["max"] if avg_rate_obj else None,
+        "sources": avg_rate_obj["sources"] if avg_rate_obj else 0,
         "official": json.dumps(official),
         "blackmarket": json.dumps(blackmarket),
-        "crypto": json.dumps(crypto)
+        "crypto": json.dumps(cex),
+        "coingecko": json.dumps(coingecko)
     }, pk="timestamp")
 
     print("✅ Updated rates successfully")
     print(f"Forex avg: {avg_rate}")
-    print(f"Crypto sample: {dict(list(crypto.items())[:3])}")  # show 3
+    print(f"Crypto sample: {dict(list(coingecko.items())[:3])}")
 
 # ----------------------------
 # Get latest rates from DB
@@ -157,7 +181,8 @@ def get_latest_rates():
         "sources": row.get("sources"),
         "official": json.loads(row.get("official") or "{}"),
         "blackmarket": json.loads(row.get("blackmarket") or "{}"),
-        "crypto": json.loads(row.get("crypto") or "{}")
+        "crypto": json.loads(row.get("crypto") or "{}"),
+        "coingecko": json.loads(row.get("coingecko") or "{}")
     }
 
 # ----------------------------
