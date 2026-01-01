@@ -1,26 +1,43 @@
+import os
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from scraper import fetch_all
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 app = FastAPI(title="NaijaRate")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+# Static files (CSS)
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(BASE_DIR, "static")),
+    name="static"
+)
+
+# Templates
+templates = Jinja2Templates(
+    directory=os.path.join(BASE_DIR, "templates")
+)
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     data = fetch_all()
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, **data}
+        {
+            "request": request,
+            "forex": data.get("forex", {}),
+            "crypto": data.get("crypto", {}),
+            "updated": data.get("updated", "N/A")
+        }
     )
 
 @app.get("/rates", response_class=JSONResponse)
 def api_rates():
     data = fetch_all()
     return {
-        "forex": data["forex"],
-        "crypto": data["crypto"]
+        "forex": data.get("forex", {}),
+        "crypto": data.get("crypto", {})
     }
