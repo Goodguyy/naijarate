@@ -1,12 +1,13 @@
-import statistics
+from statistics import mean
 
-def aggregate_rates(rates):
-    clean = [r for r in rates if isinstance(r, (int, float))]
+def aggregate(values):
+    clean = [v for v in values if isinstance(v, (int, float))]
     if not clean:
         return None
+
     return {
-        "avg": round(statistics.mean(clean)),
-        "min": min(clean),
-        "max": max(clean),
+        "avg": round(mean(clean), 2),
+        "min": round(min(clean), 2),
+        "max": round(max(clean), 2),
         "sources": len(clean)
     }
