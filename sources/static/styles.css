@@ -1,46 +1,109 @@
+/* Global Styles */
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f9f9f9;
-    color: #333;
     margin: 0;
     padding: 0;
+    color: #333;
 }
 
-header, footer {
-    background-color: #2a2a72;
-    color: white;
-    padding: 1rem;
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* Header */
+header {
+    background-color: #1E40AF;
+    color: #fff;
+    padding: 25px 15px;
     text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
 
+header h1 {
+    margin: 0;
+    font-size: 2em;
+}
+
+/* Footer */
+footer {
+    background-color: #1E40AF;
+    color: #fff;
+    padding: 15px;
+    text-align: center;
+    font-size: 0.9em;
+    margin-top: 30px;
+}
+
+/* Main content */
 main {
-    padding: 1rem;
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 25px;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.05);
 }
 
-h1, h2 {
-    margin: 0.5rem 0;
+/* Section Titles */
+h2 {
+    color: #1E40AF;
+    margin-bottom: 15px;
 }
 
+/* Tables */
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 1rem;
-}
-
-table, th, td {
-    border: 1px solid #ccc;
+    margin-bottom: 30px;
 }
 
 th, td {
-    padding: 0.5rem;
+    padding: 12px 10px;
     text-align: center;
 }
 
 th {
-    background-color: #2a2a72;
-    color: white;
+    background-color: #1E40AF;
+    color: #fff;
+    font-weight: 600;
+    text-transform: uppercase;
 }
 
 tr:nth-child(even) {
-    background-color: #f2f2f2;
+    background-color: #f4f4f4;
+}
+
+tr:hover {
+    background-color: #e0e7ff;
+    transition: 0.3s;
+}
+
+/* Last Updated */
+.updated {
+    text-align: right;
+    font-size: 0.85em;
+    color: #555;
+    margin-bottom: 15px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    body {
+        font-size: 14px;
+    }
+
+    header h1 {
+        font-size: 1.5em;
+    }
+
+    th, td {
+        padding: 10px 5px;
+    }
+
+    main {
+        padding: 15px;
+        margin: 15px;
+    }
 }
