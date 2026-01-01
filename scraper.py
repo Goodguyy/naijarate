@@ -3,12 +3,22 @@ from sources.crypto import get_crypto_prices
 from database import cache
 from datetime import datetime
 
+DEFAULT_USD_NGN = 1500  # safe fallback
+
 def fetch_all():
     if "data" in cache:
         return cache["data"]
 
-    forex = get_forex()
-    usd_rate = forex.get("USD", {}).get("avg", 1500)
+    forex = get_forex() or {}
+
+    usd_rate = (
+        forex.get("USD", {}).get("avg")
+        if isinstance(forex.get("USD"), dict)
+        else DEFAULT_USD_NGN
+    )
+
+    if not isinstance(usd_rate, (int, float)):
+        usd_rate = DEFAULT_USD_NGN
 
     crypto = get_crypto_prices(usd_rate)
 
