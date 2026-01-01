@@ -1,109 +1,45 @@
-/* Global Styles */
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f9f9f9;
+    font-family: system-ui, sans-serif;
+    background: #f7f9fc;
     margin: 0;
-    padding: 0;
-    color: #333;
+    padding: 20px;
+    color: #111;
 }
 
-a {
-    text-decoration: none;
-    color: inherit;
-}
-
-/* Header */
 header {
-    background-color: #1E40AF;
-    color: #fff;
-    padding: 25px 15px;
     text-align: center;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    margin-bottom: 30px;
 }
 
-header h1 {
-    margin: 0;
-    font-size: 2em;
+h1 {
+    margin-bottom: 5px;
 }
 
-/* Footer */
-footer {
-    background-color: #1E40AF;
-    color: #fff;
-    padding: 15px;
-    text-align: center;
-    font-size: 0.9em;
-    margin-top: 30px;
-}
-
-/* Main content */
-main {
-    max-width: 1000px;
-    margin: 20px auto;
-    padding: 25px;
-    background-color: #fff;
-    border-radius: 10px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.05);
-}
-
-/* Section Titles */
-h2 {
-    color: #1E40AF;
-    margin-bottom: 15px;
-}
-
-/* Tables */
 table {
     width: 100%;
     border-collapse: collapse;
+    background: #fff;
     margin-bottom: 30px;
 }
 
 th, td {
-    padding: 12px 10px;
+    padding: 12px;
+    border-bottom: 1px solid #eee;
     text-align: center;
 }
 
 th {
-    background-color: #1E40AF;
+    background: #0a2540;
     color: #fff;
-    font-weight: 600;
-    text-transform: uppercase;
 }
 
-tr:nth-child(even) {
-    background-color: #f4f4f4;
-}
-
-tr:hover {
-    background-color: #e0e7ff;
-    transition: 0.3s;
-}
-
-/* Last Updated */
-.updated {
-    text-align: right;
-    font-size: 0.85em;
+footer {
+    text-align: center;
+    font-size: 14px;
     color: #555;
-    margin-bottom: 15px;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    body {
-        font-size: 14px;
-    }
-
-    header h1 {
-        font-size: 1.5em;
-    }
-
-    th, td {
-        padding: 10px 5px;
-    }
-
-    main {
-        padding: 15px;
-        margin: 15px;
-    }
+.disclaimer {
+    font-size: 12px;
+    margin-top: 10px;
 }
