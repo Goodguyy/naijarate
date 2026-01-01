@@ -5,19 +5,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from scraper import fetch_all
 
-# Absolute path for cloud deployment
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = FastAPI(title="NaijaRate")
 
-# Static files
+# Mount static files
 app.mount(
     "/static",
     StaticFiles(directory=os.path.join(BASE_DIR, "static")),
     name="static"
 )
 
-# Templates directory
+# Templates folder
 templates = Jinja2Templates(
     directory=os.path.join(BASE_DIR, "templates")
 )
