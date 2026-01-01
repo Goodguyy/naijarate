@@ -1,70 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>NaijaRate</title>
-    <link rel="stylesheet" href="/static/styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NaijaRate</title>
+<link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 <header>
-    <h1>NaijaRate</h1>
-    <p>Live Crypto & Naira Exchange Rates in One Place</p>
+  <h1>NaijaRate</h1>
+  <p>Live Crypto & Naira Exchange Rates in One Place</p>
 </header>
 
-<section>
-<h2>💱 Forex Rates (NGN)</h2>
-<table>
-<tr>
-<th>Currency</th>
-<th>Average</th>
-<th>Min</th>
-<th>Max</th>
-<th>Sources</th>
-</tr>
+<section class="grid">
+  <div class="card">
+    <h2>💱 Official Forex Rates (NGN)</h2>
+    {% if data.forex.get('USD') %}
+    <p>Avg: {{ data.forex.USD.avg }} | Min: {{ data.forex.USD.min }} | Max: {{ data.forex.USD.max }}</p>
+    <p>Sources: {{ data.forex.USD.sources }}</p>
+    {% else %}
+    <p>Forex data unavailable</p>
+    {% endif %}
+  </div>
 
-{% if forex %}
-  {% for cur, v in forex.items() %}
-  <tr>
-    <td>{{ cur }}</td>
-    <td>{{ v.avg | default("—") }}</td>
-    <td>{{ v.min | default("—") }}</td>
-    <td>{{ v.max | default("—") }}</td>
-    <td>{{ v.sources | default("—") }}</td>
-  </tr>
-  {% endfor %}
-{% else %}
-<tr><td colspan="5">Forex data unavailable</td></tr>
-{% endif %}
-</table>
-</section>
+  <div class="card">
+    <h2>🤑 Blackmarket Forex Rates (NGN)</h2>
+    {% if data.forex.get('USD_blackmarket') %}
+    <p>Avg: {{ data.forex.USD_blackmarket.avg }} | Min: {{ data.forex.USD_blackmarket.min }} | Max: {{ data.forex.USD_blackmarket.max }}</p>
+    <p>Sources: {{ data.forex.USD_blackmarket.sources }}</p>
+    {% else %}
+    <p>Blackmarket data unavailable</p>
+    {% endif %}
+  </div>
 
-<section>
-<h2>🪙 Crypto Prices</h2>
-<table>
-<tr>
-<th>Coin</th>
-<th>USD</th>
-<th>NGN</th>
-</tr>
-
-{% if crypto %}
-  {% for coin, v in crypto.items() %}
-  <tr>
-    <td>{{ coin | capitalize }}</td>
-    <td>${{ v.USD | default("—") }}</td>
-    <td>₦{{ v.NGN | default("—") }}</td>
-  </tr>
-  {% endfor %}
-{% else %}
-<tr><td colspan="3">Crypto data unavailable</td></tr>
-{% endif %}
-</table>
+  <div class="card">
+    <h2>🪙 Top Crypto Prices (NGN)</h2>
+    {% if data.crypto %}
+    <table>
+      <tr><th>Coin</th><th>USD</th><th>NGN</th></tr>
+      {% for coin, val in data.crypto.items() %}
+      <tr>
+        <td>{{ coin.capitalize() }}</td>
+        <td>{{ val.usd }}</td>
+        <td>{{ val.ngn }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p>Crypto data unavailable</p>
+    {% endif %}
+  </div>
 </section>
 
 <footer>
-<p>Last Updated: {{ updated | default("N/A") }}</p>
-<p class="disclaimer">
-Rates are aggregated from multiple public sources. Parallel market rates are indicative only.
-</p>
+  <p>Last Updated: {{ data.updated }}</p>
+  <p>Rates are aggregated from multiple public sources. Parallel market rates are indicative only.</p>
 </footer>
 </body>
 </html>
