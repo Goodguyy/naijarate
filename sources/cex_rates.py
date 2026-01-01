@@ -1,23 +1,14 @@
-from sources.forex_sources import exchangerate_host, parallel_estimate
-from sources.aggregator import aggregate
-
-CURRENCIES = ["USD", "EUR", "GBP", "CAD"]
+from .forex_sources import exchangerate_host
 
 def get_forex():
+    currencies = ["USD", "EUR", "GBP", "CAD"]
     results = {}
-
-    for cur in CURRENCIES:
-        values = []
-
-        official = exchangerate_host(cur)
-        if official:
-            values.append(official)
-
-        parallels = parallel_estimate(cur)
-        values.extend(parallels)
-
-        agg = aggregate(values)
-        if agg:
-            results[cur] = agg
-
+    for cur in currencies:
+        try:
+            rate = exchangerate_host(cur)
+            if rate is None:
+                continue
+            results[cur] = {"avg": rate, "min": rate, "max": rate, "sources": 1}
+        except Exception:
+            continue
     return results
