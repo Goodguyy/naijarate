@@ -12,10 +12,19 @@ async def fetch_binance_rate(asset="USD"):
         "rows": 5
     }
 
-    async with httpx.AsyncClient(timeout=15) as client:
-        r = await client.post(BINANCE_URL, json=payload)
-        r.raise_for_status()
-        data = r.json()["data"]
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(BINANCE_URL, json=payload)
+            r.raise_for_status()
+            data = r.json().get("data", [])
 
-    prices = [float(ad["adv"]["price"]) for ad in data]
-    return statistics.median(prices)
+        prices = [float(ad["adv"]["price"]) for ad in data if "adv" in ad and "price" in ad["adv"]]
+
+        if not prices:
+            return None  # No data available
+
+        return statistics.median(prices)
+
+    except Exception as e:
+        print(f"Binance fetch failed: {e}")
+        return None
