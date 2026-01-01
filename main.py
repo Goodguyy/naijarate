@@ -1,43 +1,70 @@
-import os
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from scraper import fetch_all
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NaijaRate</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+    <h1>NaijaRate</h1>
+    <p>Live Crypto & Naira Exchange Rates in One Place</p>
+</header>
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+<section>
+<h2>💱 Forex Rates (NGN)</h2>
+<table>
+<tr>
+<th>Currency</th>
+<th>Average</th>
+<th>Min</th>
+<th>Max</th>
+<th>Sources</th>
+</tr>
 
-app = FastAPI(title="NaijaRate")
+{% if forex %}
+  {% for cur, v in forex.items() %}
+  <tr>
+    <td>{{ cur }}</td>
+    <td>{{ v.avg | default("—") }}</td>
+    <td>{{ v.min | default("—") }}</td>
+    <td>{{ v.max | default("—") }}</td>
+    <td>{{ v.sources | default("—") }}</td>
+  </tr>
+  {% endfor %}
+{% else %}
+<tr><td colspan="5">Forex data unavailable</td></tr>
+{% endif %}
+</table>
+</section>
 
-# Static files (CSS)
-app.mount(
-    "/static",
-    StaticFiles(directory=os.path.join(BASE_DIR, "static")),
-    name="static"
-)
+<section>
+<h2>🪙 Crypto Prices</h2>
+<table>
+<tr>
+<th>Coin</th>
+<th>USD</th>
+<th>NGN</th>
+</tr>
 
-# Templates
-templates = Jinja2Templates(
-    directory=os.path.join(BASE_DIR, "templates")
-)
+{% if crypto %}
+  {% for coin, v in crypto.items() %}
+  <tr>
+    <td>{{ coin | capitalize }}</td>
+    <td>${{ v.USD | default("—") }}</td>
+    <td>₦{{ v.NGN | default("—") }}</td>
+  </tr>
+  {% endfor %}
+{% else %}
+<tr><td colspan="3">Crypto data unavailable</td></tr>
+{% endif %}
+</table>
+</section>
 
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    data = fetch_all()
-    return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "forex": data.get("forex", {}),
-            "crypto": data.get("crypto", {}),
-            "updated": data.get("updated", "N/A")
-        }
-    )
-
-@app.get("/rates", response_class=JSONResponse)
-def api_rates():
-    data = fetch_all()
-    return {
-        "forex": data.get("forex", {}),
-        "crypto": data.get("crypto", {})
-    }
+<footer>
+<p>Last Updated: {{ updated | default("N/A") }}</p>
+<p class="disclaimer">
+Rates are aggregated from multiple public sources. Parallel market rates are indicative only.
+</p>
+</footer>
+</body>
+</html>
