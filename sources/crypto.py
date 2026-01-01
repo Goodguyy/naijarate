@@ -5,7 +5,7 @@ COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price"
 
 async def fetch_crypto_rates(usd_to_ngn):
     """
-    Fetch crypto prices in USD and convert to NGN
+    Fetch crypto prices in USD and convert to NGN.
     Returns a dict like:
     {
         "BTC": {"USD": 27200, "NGN": 22304000},
@@ -25,7 +25,7 @@ async def fetch_crypto_rates(usd_to_ngn):
 
         result = {}
         for coin, v in data.items():
-            usd_price = v.get("usd")
+            usd_price = round(v.get("usd", 0), 2)  # rounded USD price
             ngn_price = round(usd_price * usd_to_ngn)
             result[coin.upper()] = {"USD": usd_price, "NGN": ngn_price}
 
@@ -34,3 +34,4 @@ async def fetch_crypto_rates(usd_to_ngn):
     except Exception as e:
         print("❌ Crypto fetch error:", e)
         return {}
+
