@@ -14,17 +14,53 @@
 <main>
     <section>
         <h2>Forex Rates (₦)</h2>
-        <pre>{{FOREX_RATES}}</pre>
+        <table>
+            <thead>
+                <tr><th>Currency</th><th>Rate (₦)</th></tr>
+            </thead>
+            <tbody>
+                {% for cur, val in FOREX_RATES.items() %}
+                <tr>
+                    <td>{{ cur }}</td>
+                    <td>{{ val }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </section>
 
     <section>
         <h2>Crypto Prices (USD)</h2>
-        <pre>{{CRYPTO_USD}}</pre>
+        <table>
+            <thead>
+                <tr><th>Coin</th><th>USD</th></tr>
+            </thead>
+            <tbody>
+                {% for coin, data in CRYPTO_USD.items() %}
+                <tr>
+                    <td>{{ coin }}</td>
+                    <td>${{ data.USD }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </section>
 
     <section>
         <h2>Crypto Prices (NGN)</h2>
-        <pre>{{CRYPTO_NGN}}</pre>
+        <table>
+            <thead>
+                <tr><th>Coin</th><th>₦</th></tr>
+            </thead>
+            <tbody>
+                {% for coin, val in CRYPTO_NGN.items() %}
+                <tr>
+                    <td>{{ coin }}</td>
+                    <td>₦{{ val }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </section>
 </main>
 
