@@ -1,13 +1,21 @@
-from statistics import mean
+from datetime import datetime
+from .cex_rates import get_forex
+from .crypto import aggregate_crypto
 
-def aggregate(values):
-    clean = [v for v in values if isinstance(v, (int, float))]
-    if not clean:
-        return None
-
-    return {
-        "avg": round(mean(clean), 2),
-        "min": round(min(clean), 2),
-        "max": round(max(clean), 2),
-        "sources": len(clean)
-    }
+def fetch_all():
+    """Fetch aggregated Forex and Crypto from multiple sources safely"""
+    try:
+        forex = get_forex() or {}
+        usd_to_ngn = forex.get("USD", {}).get("avg", 750)
+        crypto = aggregate_crypto(usd_to_ngn) or {}
+        return {
+            "forex": forex,
+            "crypto": crypto,
+            "updated": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        }
+    except Exception:
+        return {
+            "forex": {},
+            "crypto": {},
+            "updated": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        }
