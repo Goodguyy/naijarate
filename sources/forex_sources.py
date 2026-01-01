@@ -1,9 +1,7 @@
-# sources/forex_sources.py
 import httpx
 from bs4 import BeautifulSoup
 import asyncio
 
-# ---------- Black Market Sources ----------
 BLACKMARKET_SOURCES = {
     "nairatoday": "https://nairatoday.com/",
     "ngnrates": "https://www.ngnrates.com/",
@@ -11,11 +9,9 @@ BLACKMARKET_SOURCES = {
     "ratecity": "https://www.ratecityng.com/",
 }
 
+CBN_XML_URL = "https://www.cbn.gov.ng/scripts/exchangerates.asp"
+
 async def fetch_blackmarket_forex(currencies=["USD","EUR","GBP","CAD"]):
-    """
-    Fetch black market forex rates asynchronously from multiple sources.
-    Returns a dictionary of currency:rate pairs.
-    """
     rates = {}
     for source, url in BLACKMARKET_SOURCES.items():
         try:
@@ -39,14 +35,20 @@ async def fetch_blackmarket_forex(currencies=["USD","EUR","GBP","CAD"]):
                     if tag:
                         val = tag.find_next("span").text
                         source_rates[cur] = int(val.replace(",", "").strip())
-            elif source in ["abokifx", "ratecity"]:
+            elif source == "abokifx":
+                for cur in currencies:
+                    tag = soup.find("td", string=lambda x: x and cur in x)
+                    if tag:
+                        val = tag.find_next("td").text
+                        source_rates[cur] = int(val.replace(",", "").strip())
+            elif source == "ratecity":
                 for cur in currencies:
                     tag = soup.find("td", string=lambda x: x and cur in x)
                     if tag:
                         val = tag.find_next("td").text
                         source_rates[cur] = int(val.replace(",", "").strip())
 
-            # Merge rates into main dict (last source wins)
+            # merge rates
             for cur, val in source_rates.items():
                 if val:
                     rates[cur] = val
@@ -56,14 +58,7 @@ async def fetch_blackmarket_forex(currencies=["USD","EUR","GBP","CAD"]):
 
     return rates
 
-# ---------- Official CBN Rates ----------
-CBN_XML_URL = "https://www.cbn.gov.ng/scripts/exchangerates.asp"
-
 async def fetch_official_forex(currencies=["USD","EUR","GBP","CAD"]):
-    """
-    Fetch official CBN forex rates asynchronously.
-    Returns a dictionary of currency:rate pairs.
-    """
     rates = {}
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -82,27 +77,16 @@ async def fetch_official_forex(currencies=["USD","EUR","GBP","CAD"]):
                     if cur in currencies:
                         try:
                             rates[cur] = int(val)
-                        except ValueError:
+                        except:
                             continue
     except Exception as e:
         print("❌ Error fetching official forex:", e)
 
     return rates
 
-# ---------- Functions expected by scraper.py ----------
-async def exchangerate_api(currencies=["USD","EUR","GBP","CAD"]):
-    """
-    Main async API function to fetch forex rates.
-    Prioritizes black market rates, falls back to official CBN rates if needed.
-    """
-    rates = await fetch_blackmarket_forex(currencies)
-    if not rates:
-        rates = await fetch_official_forex(currencies)
+async def get_forex_rates():
+    # merge official + black market
+    official = await fetch_official_forex()
+    black = await fetch_blackmarket_forex()
+    rates = {**official, **black}
     return rates
-
-def fallback_rate(cur="USD"):
-    """
-    Hardcoded fallback rates if all API calls fail.
-    """
-    fallbacks = {"USD": 780, "EUR": 850, "GBP": 1000, "CAD": 600}
-    return fallbacks.get(cur.upper(), 800)
