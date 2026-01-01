@@ -1,25 +1,26 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from scraper import get_latest_rates
+from scraper import fetch_rates_sync
+from pathlib import Path
 
 app = FastAPI()
 
-# Serve static files (CSS)
-app.mount("/static", StaticFiles(directory="sources/static"), name="static")
+# Serve static CSS
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
-# Jinja2 templates folder
-templates = Jinja2Templates(directory="sources/templates")
+@app.get("/")
+def home():
+    rates = fetch_rates_sync()
+    with open("templates/index.html", "r", encoding="utf-8") as f:
+        html = f.read()
 
-
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    data = await get_latest_rates()
-    return templates.TemplateResponse("index.html", {"request": request, "data": data})
-
+    # Replace placeholders in HTML
+    html = html.replace("{{FOREX_RATES}}", str(rates["data"]["forex"]))
+    html = html.replace("{{CRYPTO_USD}}", str(rates["data"]["crypto_usd"]))
+    html = html.replace("{{CRYPTO_NGN}}", str(rates["data"]["crypto_ngn"]))
+    return HTMLResponse(content=html)
 
 @app.get("/rates")
-async def rates():
-    # API endpoint for JSON
-    return await get_latest_rates()
+def rates():
+    return fetch_rates_sync()
