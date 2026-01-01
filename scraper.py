@@ -1,37 +1,22 @@
-import asyncio
-from sources.crypto import get_crypto_rates
-from sources.forex_sources import fetch_blackmarket_forex, fetch_official_forex
-from sources.aggregator import aggregate_rates
+from sources.cex_rates import get_forex
+from sources.crypto import get_crypto_prices
+from database import cache
+from datetime import datetime
 
-USD_TO_NGN_FALLBACK = 765  # fallback if no rates
+def fetch_all():
+    if "data" in cache:
+        return cache["data"]
 
-async def get_latest_rates():
-    # Fetch forex
-    forex_blackmarket = await fetch_blackmarket_forex()
-    forex_official = await fetch_official_forex()
+    forex = get_forex()
+    usd_rate = forex.get("USD", {}).get("avg", 1500)
 
-    usd_rates = []
-    for val in [forex_blackmarket.get("USD"), forex_official.get("USD")]:
-        if val:
-            usd_rates.append(val)
+    crypto = get_crypto_prices(usd_rate)
 
-    usd_to_ngn = aggregate_rates(usd_rates)["avg"] if usd_rates else USD_TO_NGN_FALLBACK
-
-    # Fetch crypto
-    crypto = await get_crypto_rates(usd_to_ngn)
-
-    return {
-        "source": "live",
-        "data": {
-            "forex": {
-                "USD": usd_to_ngn,
-                **{k: v for k, v in forex_blackmarket.items() if k != "USD"}
-            },
-            "crypto_usd": {k: {"USD": v["USD"]} for k,v in crypto.items()},
-            "crypto_ngn": {k: v["NGN"] for k,v in crypto.items()}
-        }
+    payload = {
+        "forex": forex,
+        "crypto": crypto,
+        "updated": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     }
 
-# For synchronous use
-def fetch_rates_sync():
-    return asyncio.run(get_latest_rates())
+    cache["data"] = payload
+    return payload
