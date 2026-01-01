@@ -5,3 +5,4 @@ requests
 python-multipart
 cachetools
 beautifulsoup4
+pydantic
