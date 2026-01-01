@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from bs4 import BeautifulSoup
 
@@ -5,7 +6,7 @@ from bs4 import BeautifulSoup
 BLACKMARKET_SOURCES = {
     "nairatoday": "https://nairatoday.com/",
     "ngnrates": "https://ngnrates.com/",
-    # Add more sources as needed
+    # Add more sources here
 }
 
 OFFICIAL_RATES = {
@@ -13,10 +14,6 @@ OFFICIAL_RATES = {
 }
 
 async def fetch_blackmarket_rate(source_name):
-    """
-    Fetch black market rates for USD (extendable for EUR, GBP, etc.)
-    Returns a dict: {"USD": 750, "EUR": 820, ...}
-    """
     url = BLACKMARKET_SOURCES.get(source_name)
     if not url:
         return {}
@@ -30,27 +27,21 @@ async def fetch_blackmarket_rate(source_name):
         soup = BeautifulSoup(html, "html.parser")
         rates = {}
 
-        # Example parsing for USD, EUR, GBP
+        # Example parsing for USD, EUR, GBP, CAD
         if source_name == "nairatoday":
-            # NaijaToday example
-            usd_tag = soup.find("div", string=lambda x: x and "USD" in x)
-            if usd_tag:
-                rate_text = usd_tag.find_next("div").text
-                rates["USD"] = int(rate_text.replace(",", "").strip())
-
-            eur_tag = soup.find("div", string=lambda x: x and "EUR" in x)
-            if eur_tag:
-                rate_text = eur_tag.find_next("div").text
-                rates["EUR"] = int(rate_text.replace(",", "").strip())
+            for currency in ["USD", "EUR", "GBP", "CAD"]:
+                tag = soup.find("div", string=lambda x: x and currency in x)
+                if tag:
+                    rate_text = tag.find_next("div").text
+                    rates[currency] = int(rate_text.replace(",", "").strip())
 
         elif source_name == "ngnrates":
-            # NGN Rates example
-            usd_tag = soup.find("span", string=lambda x: x and "USD" in x)
-            if usd_tag:
-                rate_text = usd_tag.find_next("span").text
-                rates["USD"] = int(rate_text.replace(",", "").strip())
+            for currency in ["USD", "EUR", "GBP", "CAD"]:
+                tag = soup.find("span", string=lambda x: x and currency in x)
+                if tag:
+                    rate_text = tag.find_next("span").text
+                    rates[currency] = int(rate_text.replace(",", "").strip())
 
-        # Add more source-specific parsing here
         return rates
 
     except Exception as e:
@@ -58,10 +49,6 @@ async def fetch_blackmarket_rate(source_name):
         return {}
 
 async def fetch_official_rate():
-    """
-    Fetch official rate from Central Bank of Nigeria
-    Returns dict: {"USD": 775, "EUR": 830, ...}
-    """
     url = OFFICIAL_RATES["central_bank"]
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -71,19 +58,33 @@ async def fetch_official_rate():
 
         soup = BeautifulSoup(html, "html.parser")
         rates = {}
-
-        usd_tag = soup.find("td", string=lambda x: x and "USD" in x)
-        if usd_tag:
-            rate_text = usd_tag.find_next("td").text
-            rates["USD"] = int(rate_text.replace(",", "").strip())
-
-        eur_tag = soup.find("td", string=lambda x: x and "EUR" in x)
-        if eur_tag:
-            rate_text = eur_tag.find_next("td").text
-            rates["EUR"] = int(rate_text.replace(",", "").strip())
+        for currency in ["USD", "EUR", "GBP", "CAD"]:
+            tag = soup.find("td", string=lambda x: x and currency in x)
+            if tag:
+                rate_text = tag.find_next("td").text
+                rates[currency] = int(rate_text.replace(",", "").strip())
 
         return rates
 
     except Exception as e:
         print("❌ Error fetching official rate:", e)
         return {}
+
+async def fetch_all_forex():
+    """
+    Fetch all forex rates from black market and official sources
+    Returns a list of dicts like:
+    [{"source": "nairatoday", "USD": 750, ...}, {"source": "central_bank", "USD": 775, ...}]
+    """
+    tasks = [fetch_official_rate()]
+    for source in BLACKMARKET_SOURCES:
+        tasks.append(fetch_blackmarket_rate(source))
+    
+    results = await asyncio.gather(*tasks)
+    all_rates = []
+    for i, r in enumerate(results):
+        if r:
+            source_name = "central_bank" if i == 0 else list(BLACKMARKET_SOURCES.keys())[i-1]
+            r["source"] = source_name
+            all_rates.append(r)
+    return all_rates
