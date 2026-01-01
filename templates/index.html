@@ -1,62 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>NaijaRate - Crypto & Forex Rates</title>
-    <link rel="stylesheet" href="/static/styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NaijaRate - Crypto & Forex</title>
+<link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <div class="container">
-        <h1>🇳🇬 NaijaRate</h1>
-        <h2>Live Crypto & Forex Rates</h2>
+<header>
+    <h1>💹 NaijaRate - Crypto & Forex Rates</h1>
+</header>
 
-        <!-- Forex Section -->
-        <section>
-            <h3>Forex Rates (NGN)</h3>
-            {% if data.data.forex %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Currency</th>
-                            <th>Rate (NGN)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for cur, val in data.data.forex.items() %}
-                        <tr>
-                            <td>{{ cur }}</td>
-                            <td>₦{{ val | number }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p>No forex rates available at the moment.</p>
-            {% endif %}
-        </section>
+<main>
+    <section>
+        <h2>Forex Rates (₦)</h2>
+        <pre>{{FOREX_RATES}}</pre>
+    </section>
 
-        <!-- Crypto Section -->
-        <section>
-            <h3>Crypto Prices</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Coin</th>
-                        <th>USD</th>
-                        <th>NGN</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for coin, info in data.data.crypto_usd.items() %}
-                    <tr>
-                        <td>{{ coin | capitalize }}</td>
-                        <td>${{ info.usd }}</td>
-                        <td>₦{{ data.data.crypto_ngn[coin] | number }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </section>
-    </div>
+    <section>
+        <h2>Crypto Prices (USD)</h2>
+        <pre>{{CRYPTO_USD}}</pre>
+    </section>
+
+    <section>
+        <h2>Crypto Prices (NGN)</h2>
+        <pre>{{CRYPTO_NGN}}</pre>
+    </section>
+</main>
+
+<footer>
+    <p>Updated live from Coingecko & Forex sources</p>
+</footer>
 </body>
 </html>
